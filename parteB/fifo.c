@@ -66,6 +66,7 @@ struct semaphore cola_prod, cola_cons, wait_friend;
         }\
     } while(0)
 
+#define __Handler__
 
 
 static int Major;  
@@ -130,41 +131,38 @@ static int fifo_open(struct inode *inode, struct file *file)
     else 
         num_prod++;
 
+
     // Si falta de algun tipo esperar a un amigo
     if(!(num_cons && num_prod)){
-        sleepy_friends++; 
-        up(&mutex); 
-        DBG("Me voy a dormir en wait_friend con sleepy_friends : %d", sleepy_friends); 
-        if (down_interruptible(&wait_friend)){ 
-            DBG("[INT] Despertado de wait_friend por interrupción }:(");
-            down(&mutex); 
-            sleepy_friends--;
-            up(&mutex); 
-            error = 1;
-        } 
+        cond_wait(&mutex,&wait_friend,sleepy_friends,
+                __Handler__ { 
+                    down(&mutex);
+                    if(is_cons)
+                        num_cons--;
+                    else
+                        num_prod--;
+                    up(&mutex);
+                });
+
         // Reentrar en la sección critica.
-        if (!error && down_interruptible(&mutex)) 
-            error = 1;
-    }
+        if (down_interruptible(&mutex)) {
+            down(&mutex);
+            if(is_cons)
+                num_cons--;
+            else
+                num_prod--;
+            up(&mutex);
+            return -EINTR;
+        }
 
     // Si hay amigos esperando despierta a todos
-    while(!error && sleepy_friends){
+    while(sleepy_friends){
         sleepy_friends--;
         up(&wait_friend);
     }
 
-    if(!error)
-        up(&mutex);
-    else{
-        down(&mutex);
-        if(is_cons)
-            num_cons--;
-        else
-            num_prod--;
-        up(&mutex);
+    up(&mutex);
         
-        return -EINTR;
-    }
     // FIN SECCIÓN CRÍTICA <<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<
     try_module_get(THIS_MODULE);
 
@@ -237,7 +235,10 @@ static ssize_t fifo_read (struct file *filp,
 
     // El consumidor se bloquea si no tiene lo que pide
     while (size_cbuffer_t(cbuffer) < length)
-        cond_wait(&mutex, &cola_cons, num_bloq_cons);
+        cond_wait(&mutex, &cola_cons, num_bloq_cons
+                __Handler__ {
+                    vfree(kbuff);
+                });
 
     remove_items_cbuffer_t(cbuffer, kbuff, length); 
     
@@ -297,7 +298,10 @@ static ssize_t fifo_write (struct file *filp,
 
     // El productor se bloquea si no hay espacio
     while (nr_gaps_cbuffer_t(cbuffer) < length)
-        cond_wait(&mutex, &cola_prod, num_bloq_prod);
+        cond_wait(&mutex, &cola_prod, num_bloq_prod,
+                __Handler__{
+                    vfree(kbuff);
+                });
     
     insert_items_cbuffer_t(cbuffer, kbuff, length); 
     
