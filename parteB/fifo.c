@@ -25,6 +25,7 @@ static ssize_t fifo_write(struct file * ,const char __user * ,size_t ,loff_t *);
 #define DEVICE_NAME "fifodev"
 #define BUF_LEN 512
 //#define FIFO_DEBUG
+//#define DEBUG_VERBOSE
 
 cbuffer_t* cbuffer;
 
@@ -43,17 +44,24 @@ struct semaphore cola_prod, cola_cons, wait_friend;
     #define DBG(format, arg...) do { \
         printk(KERN_DEBUG "%s: " format "\n" , __func__ , ## arg); \
     } while (0)
+
+    #ifdef DEBUG_VERBOSE
+        #define DBGV DBG
+    #else
+        #define DBGV(format, args...) /* */
+    #endif
 #else
     #define DBG(format, arg...) /* */
+    #define DBGV(format, args...) /* */
 #endif
 
 #define cond_wait(mtx, cond, count, interrupt_handler) \
     do { \
         count++; \
         up(mtx); \
-        DBG("Me voy a dormir en "#cond" con "#count": %d", count); \
+        DBGV("Me voy a dormir en "#cond" con "#count": %d", count); \
         if (down_interruptible(cond)){ \
-            DBG("[INT] Despertado de "#cond" por interrupción }:(");\
+            DBGV("[INT] Despertado de "#cond" por interrupción }:(");\
             down(mtx); \
             count--; \
             up(mtx); \
@@ -118,7 +126,7 @@ static int fifo_open(struct inode *inode, struct file *file)
 {
     char is_cons = file->f_mode & FMODE_READ;
 
-    DBG("Pipe abierto para %s con lecotres %d, escriores %d", 
+    DBGV("Pipe abierto para %s con lecotres %d, escriores %d", 
             (file->f_mode & FMODE_READ)? "lectura": "escritura",
             num_cons, 
             num_prod);
@@ -180,7 +188,7 @@ static int fifo_release(struct inode *inode, struct file *file)
     up(&mutex);
     // FIN SECCIÓN CRÍTICA <<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<
     
-    DBG("Pipe de %s cerrado con lecotres %d, escriores %d", 
+    DBGV("Pipe de %s cerrado con lecotres %d, escriores %d", 
             (file->f_mode & FMODE_READ)? "lectura": "escritura",
             num_cons, 
             num_prod);
@@ -198,8 +206,8 @@ static ssize_t fifo_read (struct file *filp,
                             loff_t *offset)
 {
     char *kbuff;
-    DBG("Quiero leer %d bytes", length);
-    DBG("Escritores esperando %d", num_bloq_prod);
+    DBGV("Quiero leer %d bytes", length);
+    DBGV("Escritores esperando %d", num_bloq_prod);
 
     if (length > BUF_LEN){
         DBG("[ERROR] Lectura demasiado grande");
@@ -213,14 +221,14 @@ static ssize_t fifo_read (struct file *filp,
 
     // INICIO SECCIÓN CRÍTICA >>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>
     if (down_interruptible(&mutex)){ 
-        DBG("[INT] Interrumpido al intentar acceder a la SC");
+        DBGV("[INT] Interrumpido al intentar acceder a la SC");
         return -EINTR;
     }
 
     // Si el pipe esta vacio y no hay productores -> EOF
     if (num_prod == 0 && is_empty_cbuffer_t(cbuffer)){
         up(&mutex);
-        DBG("Pipe vacio sin productores");
+        DBGV("Pipe vacio sin productores");
         return 0;
     }
 
@@ -245,7 +253,7 @@ static ssize_t fifo_read (struct file *filp,
 
     length -= copy_to_user(buff, kbuff, length);
     
-    DBG("[TERMINADO] escritores esperando %d", num_bloq_prod);
+    DBGV("[TERMINADO] escritores esperando %d", num_bloq_prod);
 
     vfree(kbuff);
 
@@ -261,7 +269,7 @@ static ssize_t fifo_write (struct file *filp,
 
     char *kbuff;
 
-    DBG("Quiero escribir %d bytes", length);
+    DBGV("Quiero escribir %d bytes", length);
 
     if (length > BUF_LEN){
         DBG("[ERROR] Demasiado para escribir");
@@ -277,7 +285,7 @@ static ssize_t fifo_write (struct file *filp,
 
     // INICIO SECCIÓN CRÍTICA >>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>
     if (down_interruptible(&mutex)){
-        DBG("[INT] Interrumpido al intentar acceder a la SC");
+        DBGV("[INT] Interrumpido al intentar acceder a la SC");
         return -EINTR;
     }
 
