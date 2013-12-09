@@ -24,7 +24,7 @@ static ssize_t fifo_write(struct file * ,const char __user * ,size_t ,loff_t *);
 
 #define DEVICE_NAME "fifodev"
 #define BUF_LEN 512
-#define FIFO_DEBUG
+//#define FIFO_DEBUG
 
 cbuffer_t* cbuffer;
 
