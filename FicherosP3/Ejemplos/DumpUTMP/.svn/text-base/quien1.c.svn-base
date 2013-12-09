@@ -1,0 +1,433 @@
+/* Orden "quien" emula a "who" en GNU-LINUX */
+
+#include "quien.h"
+
+char *nombre_programa;
+
+/* Si es "true", solo muestra los campos 'nombre', 'linea' y 'tiempo'.  */
+static bool salida_breve;
+
+/* Si es "true", muestra HH:MM desde que el usuario uso el teclado,
+   o "." si lo hizo hace menos de un minuto,
+   o "antig" si lleva mas de un dia sin usarlo */
+static bool incluye_actividad;
+
+/* Si es "true", muestra una linea al principio describiendo cada campo.  */
+static bool incluye_cabecera;
+
+/* Si es "true", muestra el status de terminacion & salida del proceso de login.  */
+static bool incluye_salida;
+
+/* Si es "true", muestra los procesos que esperan 'login' de usuario.  */
+static bool examina_login;
+
+/* If true, display user processes.  */
+static bool examina_usuarios;
+
+/* Si es "true", muestra informacion solo acerca del tty de control.  */
+static bool solo_yo;
+
+static char const *formato_tiempo = "%b %e %H:%M";
+static int anchura_formato_tiempo = 3 + 1 + 2 + 1 + 2 + 1 + 2;
+
+/* Devuelve un string representando el tiempo transcurrido entre CUANDO y AHORA.
+   BOOTTIME es la hora del ultimo arranque.  */
+static const char *
+string_actividad (time_t cuando, time_t boottime)
+{
+  /* CODIGO
+	La cadena devuelta es "."  si ha habido actividad ene l termial en el ultimo minuto
+	HH:MM, si hace menos de un dia que se ha usado el termoinal
+	'antig'
+  */
+
+  return NULL;
+}
+
+/* Devuelve un string con la fecha/hora.  */
+static char *
+string_tiempo (const struct utmp *utmp_ent)
+{
+	static char strtime[100];
+	char* ptrtime;
+	time_t tiempo;
+	int len=0;
+	
+	tiempo=utmp_ent->ut_time;		
+	ptrtime=ctime(&tiempo);
+	strcpy(strtime,ptrtime);
+	len=strlen(strtime);
+	strtime[len-1]='\0';	/* Remove the new line character */
+	return strtime;
+}
+
+
+
+
+/* Imprime una linea de salida formateada. */
+static void
+print_linea (const char *type,const char *usuario, const char *linea, const char *strtiempo,
+	    const char *idlinea,const char *host,const char* str_salida)
+{
+	/* CODIGO */
+	printf("(%s)\t%s\t\t%s\t%s\t%c%c\t%s\t%s\n",type,usuario,linea,strtiempo,idlinea[0],idlinea[1],host,str_salida);
+}
+
+/* Envia la informacion referente a un USER_PROCESS, adecuadamente tratada, a print_linea.
+   BOOTTIME es el tiempo del ultimo arranque. */
+static void
+print_usuario (const struct utmp *utmp_ent, time_t boottime)
+{
+	/* CODIGO */
+}
+
+static char *
+id_es_comentario (struct utmp const *utmp_ent)
+{
+	/* CODIGO 
+	Construye una cadena "id='campo ut_id' " como comentario
+	*/
+	return "";
+}
+
+static void
+print_login (const struct utmp *utmp_ent)
+{
+	/* CODIGO */
+}
+
+static void
+print_cabecera (void)
+{
+	printf("TIPO\t\tNOMBRE\t\tLINEA\tTIEMPO\t\t\t\tID.\tHOST\tSALIDA\n");
+	printf("-----------------------------------------------------------------------------------------\n");
+}
+
+ 
+/*
+	      #define UT_UNKNOWN            0
+	      #define RUN_LVL               1
+              #define BOOT_TIME             2
+              #define NEW_TIME              3
+              #define OLD_TIME              4
+              #define INIT_PROCESS          5
+              #define LOGIN_PROCESS         6
+              #define USER_PROCESS          7
+              #define DEAD_PROCESS          8
+              #define ACCOUNTING            9
+*/
+
+static void utmptype2str(char* buf,short type)
+{
+	switch(type)
+	{
+	case UT_UNKNOWN: strcpy(buf,"UT_UNKNOWN");
+		break;
+	case RUN_LVL: strcpy(buf,"RUN_LVL");
+		break;
+	case BOOT_TIME: strcpy(buf,"BOOT_TIME");
+		break;
+	case NEW_TIME: strcpy(buf,"NEW_TIME");
+		break;
+	case OLD_TIME: strcpy(buf,"OLD_TIME");
+		break;
+	case INIT_PROCESS: strcpy(buf,"INIT_PROCESS");
+		break;
+	case LOGIN_PROCESS: strcpy(buf,"LOGIN_PROCESS");
+		break;
+	case USER_PROCESS: strcpy(buf,"USER_PROCESS");
+		break;
+	case DEAD_PROCESS: strcpy(buf,"DEAD_PROCESS");
+		break;
+	case ACCOUNTING: strcpy(buf,"ACCOUNTING");
+		break;
+	default: strcpy(buf,"OTHER");
+	}
+}
+
+
+/* Explora el array de registros UTMP_BUF, que debería tener N entradas. */
+//print_linea (const char *type,const char *usuario, const char *linea,
+//	    const char *idlinea,const char *host,const char* str_salida)
+
+
+
+static void
+explorar_entradas (size_t n_entries, const struct utmp *utmp_buf)
+{
+	int i=0;
+	char strtype[100];
+	char strexit[100];
+	char *strtime;
+	const struct utmp *cur;
+
+	/* CODIGO */
+	if (incluye_cabecera)
+		print_cabecera();
+
+	for (i=0;i<n_entries;i++)
+	{
+		cur=&(utmp_buf[i]);
+		/* Build String Representation */
+		utmptype2str(strtype,cur->ut_type);	
+		strtime=string_tiempo(cur);
+		sprintf(strexit,"(%i,%i)",cur->ut_exit.e_termination,cur->ut_exit.e_exit);
+		print_linea (strtype,cur->ut_user, cur->ut_line,strtime,cur->ut_id,cur->ut_host,strexit);
+		/* Free memory requested by ctime*/
+		//free(strtime);	
+	}
+
+	
+	
+}
+
+
+int isdir_path(char *dir)
+{
+	DIR *dirp=NULL;
+	int ret=0;
+
+	// Abre el directorio dir, y obtiene un descriptor dirp de tipo DIR
+	if ((dirp = opendir(dir)) == NULL) { 
+		// ANALYZE ERRNO
+		if (errno==ENOTDIR)
+		{
+			/* This is not a directory*/
+			ret=0;
+		}
+		else {
+			ret=-1; perror(dir); exit(-1); 
+		}
+	}
+	else{
+		ret=1;
+		closedir(dirp);
+	}
+
+	return ret;
+
+}
+
+
+
+
+/* Lee el fichero especificado y almcena su contenido 
+   en un array de STRUCT UTMP */
+static int 
+leer_utmp(char *fichero, int *n_entradas, struct utmp **utmp_buf) {
+	/* CODIGO */
+  int fd_utmp=0;
+  int i=0;  
+  FILE* file_utmp=NULL;
+  struct stat stat_str;
+  int num_registers=0;
+  struct utmp *utmpv=NULL;
+  struct utmp *buf;
+
+
+/* Open file using low level API */
+  if ((fd_utmp=open(fichero,O_RDONLY))<0)
+  {
+	perror("Utmp file could not be opened");
+	exit(-1);
+  }
+	
+/* Get a FILE pointer from the brand new descriptor */
+  file_utmp=fdopen(fd_utmp,"r");
+/* Get status information from the descriptor*/
+  if (fstat(fd_utmp, &stat_str))
+  {
+	perror("The status information could not be obtained");
+	exit(-1);
+  }  
+
+  num_registers=((int)stat_str.st_size)/sizeof(struct utmp);  
+
+  if ((utmpv=((struct utmp*)malloc(num_registers*sizeof(struct utmp))))==NULL)
+  {
+	perror("Not available memory for the UTMP buffer");
+	exit(-1);
+  }
+
+
+  /* Read the contents of the utmp file and store everything into the internal buffer*/
+/* size_t fread( void *ptr, size_t tam, size_t nmiemb, FILE *flujo) */  
+#if defined(QUIEN_ALL)
+  if (fread(utmpv,sizeof(struct utmp),num_registers,file_utmp) != num_registers)
+  {
+	perror("Error while trying to access this stuff");
+	exit(-1);
+  }
+
+  fclose(file_utmp);
+#elif defined(QUIEN_UTENT)
+
+	utmpname(fichero);
+	setutent();
+    	while ((buf = getutent()) != NULL) {
+		utmpv[i++]=(*buf);
+	}
+#else
+
+  for (i=0;i<num_registers;i++)
+  {
+	 if (fread(&utmpv[i],sizeof(struct utmp),1,file_utmp) != 1)
+  	 {
+		perror("Error while trying to access this stuff");
+		exit(-1);
+  	 }
+	
+	buf=&utmpv[i];
+  }
+   fclose(file_utmp);
+#endif
+
+
+ /* Return the pointer with the data stored in the right place*/
+  *utmp_buf=utmpv;
+  *n_entradas=num_registers;
+
+  return 0;
+}
+
+/* Muestra la lista de usuarios conectados al sistema, segunestan registrados
+   en el fichero utmp FICHERO.
+   Utiliza leer_utmp() para leer el fichero.  */
+static void
+quien (char *fichero)
+{
+  int n_entradas;
+  struct utmp *utmp_buf;
+  char *real_path;
+
+
+
+
+  if (isdir_path(fichero))
+  {
+	real_path=malloc(strlen(fichero)+5+1);
+	sprintf(real_path,"%s/utmp",fichero);
+  }
+  else {
+	real_path=malloc(strlen(fichero)+1);
+	strcpy(real_path,fichero);
+   }
+
+
+
+  if (leer_utmp(real_path, &n_entradas, &utmp_buf) != 0)
+    err (EXIT_FAILURE, "%s", fichero);
+
+  explorar_entradas (n_entradas, utmp_buf);
+
+  free(utmp_buf);
+  free(real_path);
+
+}
+
+static void
+uso (int status)
+{
+  if (status != EXIT_SUCCESS)
+    warnx("Pruebe `%s -h' para obtener mas informacion.\n", nombre_programa);
+  else
+    {
+      printf ("Uso: %s [OPCION]... [ FICHERO | ARG1 ARG2 ]\n", nombre_programa);
+      fputs ("\
+Muestra informacion sobre los usuarios que actualmente tienen sesion abierta.\n\
+", stdout);
+      fputs ("\
+  -H, 	imprime una linea de cabeceras\n\
+", stdout);
+      fputs ("\
+  -l, 	muestra los procesos inicio de sesión (\"login\")\n\
+  -m,   equivale a 'soy yo'\n\
+", stdout);
+      fputs ("\
+  -s, 	Muestra solo nombre, terminal y fecha de inicio de sesion (por defecto)\n\
+", stdout);
+      fputs ("\
+  -u, 	Muestra informacion acerca de los usuarios con sesion abierta\n\
+  -h,	Muestra este breve recordatorio de uso\n\
+", stdout);
+      printf ("\
+\n\
+Si no se especifica FICHERO, usa %s. Es habitual el uso de %s como FICHERO.\n\
+Si aparecen ARG1 ARG2, se aplica la opcion -m: `soy yo' es lo usual.\n\
+", UTMP_FILE, WTMP_FILE);
+    }
+  exit (status);
+}
+
+int
+main (int argc, char **argv)
+{
+  int optc;
+  bool pordefecto = true;
+
+  nombre_programa = argv[0];
+
+  while ((optc = getopt (argc, argv, "abdlmqrsuHh")) != -1)
+    {
+      switch (optc)
+	{
+	case 'H':
+	  incluye_cabecera = true;
+	  break;
+
+	case 'l':
+	  examina_login = true;
+	  incluye_actividad = true;
+	  pordefecto = false;
+	  break;
+
+	case 'm':
+	  solo_yo = true;
+	  break;
+
+	case 's':
+	  salida_breve = true;
+	  break;
+
+	case 'u':
+	  examina_usuarios = true;
+	  incluye_actividad = true;
+	  pordefecto = false;
+	  break;
+
+	case 'h':
+	  uso(EXIT_SUCCESS);
+
+	default:
+	  uso (EXIT_FAILURE);
+	}
+    }
+
+
+  if (pordefecto)
+    {
+      examina_usuarios = true;
+      salida_breve = true;
+    }
+
+  switch (argc - optind)
+    {
+    case 2:			/* quien <arg1> <arg2> */
+      solo_yo = true;
+      /* Continua hacia abajo.  */
+    case -1:
+    case 0:			/* quien */
+      quien (UTMP_FILE);
+      break;
+
+    case 1:			/* quien <fichero utmp> */
+      quien (argv[optind]);
+      break;
+
+    default:	
+      warnx ("operando de mas: %s", argv[optind + 2]);
+      uso (EXIT_FAILURE);
+    }
+
+  exit (EXIT_SUCCESS);
+}
