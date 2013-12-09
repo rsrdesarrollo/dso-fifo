@@ -66,6 +66,8 @@ struct semaphore cola_prod, cola_cons, wait_friend;
         }\
     } while(0)
 
+
+
 #define __Handler__
 
 
@@ -115,7 +117,6 @@ void cleanup_module(void)
 static int fifo_open(struct inode *inode, struct file *file)
 {
     char is_cons = file->f_mode & FMODE_READ;
-    char error = 0;
 
     DBG("Pipe abierto para %s con lecotres %d, escriores %d", 
             (file->f_mode & FMODE_READ)? "lectura": "escritura",
@@ -134,7 +135,7 @@ static int fifo_open(struct inode *inode, struct file *file)
 
     // Si falta de algun tipo esperar a un amigo
     if(!(num_cons && num_prod)){
-        cond_wait(&mutex,&wait_friend,sleepy_friends,
+        cond_wait(&mutex, &wait_friend, sleepy_friends,
                 __Handler__ { 
                     down(&mutex);
                     if(is_cons)
@@ -143,17 +144,7 @@ static int fifo_open(struct inode *inode, struct file *file)
                         num_prod--;
                     up(&mutex);
                 });
-
-        // Reentrar en la sección critica.
-        if (down_interruptible(&mutex)) {
-            down(&mutex);
-            if(is_cons)
-                num_cons--;
-            else
-                num_prod--;
-            up(&mutex);
-            return -EINTR;
-        }
+    }
 
     // Si hay amigos esperando despierta a todos
     while(sleepy_friends){
@@ -234,11 +225,12 @@ static ssize_t fifo_read (struct file *filp,
     }
 
     // El consumidor se bloquea si no tiene lo que pide
-    while (size_cbuffer_t(cbuffer) < length)
-        cond_wait(&mutex, &cola_cons, num_bloq_cons
+    while (size_cbuffer_t(cbuffer) < length){
+        cond_wait(&mutex, &cola_cons, num_bloq_cons,
                 __Handler__ {
                     vfree(kbuff);
                 });
+    }
 
     remove_items_cbuffer_t(cbuffer, kbuff, length); 
     
@@ -299,7 +291,7 @@ static ssize_t fifo_write (struct file *filp,
     // El productor se bloquea si no hay espacio
     while (nr_gaps_cbuffer_t(cbuffer) < length)
         cond_wait(&mutex, &cola_prod, num_bloq_prod,
-                __Handler__{
+                __Handler__ {
                     vfree(kbuff);
                 });
     
