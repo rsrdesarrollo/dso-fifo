@@ -314,7 +314,7 @@ static ssize_t fifo_write (struct file *filp,
     up(&mutex);
     // FIN SECCIÓN CRÍTICA <<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<
     
-    DBG("[TERMINADO] lectores esperando %d", num_bloq_cons);
+    DBGV("[TERMINADO] lectores esperando %d", num_bloq_cons);
 
     vfree(kbuff);
 
