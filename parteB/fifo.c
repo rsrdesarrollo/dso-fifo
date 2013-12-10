@@ -55,7 +55,7 @@ struct semaphore cola_prod, cola_cons, wait_friend;
     #define DBGV(format, args...) /* */
 #endif
 
-#define cond_wait(mtx, cond, count, interrupt_handler) \
+#define cond_wait(mtx, cond, count, interrupt_InterruptHandler) \
     do { \
         count++; \
         up(mtx); \
@@ -65,18 +65,19 @@ struct semaphore cola_prod, cola_cons, wait_friend;
             down(mtx); \
             count--; \
             up(mtx); \
-            interrupt_handler \
+            interrupt_InterruptHandler \
             return -EINTR; \
         } \
+        DBGV("Me han despertado de "#cond);\
         if (down_interruptible(mtx)){ \
-            interrupt_handler \
+            interrupt_InterruptHandler \
             return -EINTR; \
         }\
     } while(0)
 
 
 
-#define __Handler__
+#define __InterruptHandler__
 
 
 static int Major;  
@@ -144,7 +145,7 @@ static int fifo_open(struct inode *inode, struct file *file)
     // Si falta de algun tipo esperar a un amigo
     if(!(num_cons && num_prod)){
         cond_wait(&mutex, &wait_friend, sleepy_friends,
-                __Handler__ { 
+                __InterruptHandler__ { 
                     down(&mutex);
                     if(is_cons)
                         num_cons--;
@@ -222,6 +223,7 @@ static ssize_t fifo_read (struct file *filp,
     // INICIO SECCIÓN CRÍTICA >>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>
     if (down_interruptible(&mutex)){ 
         DBGV("[INT] Interrumpido al intentar acceder a la SC");
+        vfree(kbuff);
         return -EINTR;
     }
 
@@ -229,13 +231,14 @@ static ssize_t fifo_read (struct file *filp,
     if (num_prod == 0 && is_empty_cbuffer_t(cbuffer)){
         up(&mutex);
         DBGV("Pipe vacio sin productores");
+        vfree(kbuff);
         return 0;
     }
 
     // El consumidor se bloquea si no tiene lo que pide
     while (size_cbuffer_t(cbuffer) < length){
         cond_wait(&mutex, &cola_cons, num_bloq_cons,
-                __Handler__ {
+                __InterruptHandler__ {
                     vfree(kbuff);
                 });
     }
@@ -256,7 +259,6 @@ static ssize_t fifo_read (struct file *filp,
     DBGV("[TERMINADO] escritores esperando %d", num_bloq_prod);
 
     vfree(kbuff);
-
     return length;
 }
 
@@ -286,6 +288,7 @@ static ssize_t fifo_write (struct file *filp,
     // INICIO SECCIÓN CRÍTICA >>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>
     if (down_interruptible(&mutex)){
         DBGV("[INT] Interrumpido al intentar acceder a la SC");
+        vfree(kbuff);
         return -EINTR;
     }
 
@@ -293,13 +296,14 @@ static ssize_t fifo_write (struct file *filp,
     if (num_cons == 0){
         up(&mutex);
         DBG("[ERROR] Escritura sin consumidor");
+        vfree(kbuff);
         return -EPIPE;
     }
 
     // El productor se bloquea si no hay espacio
     while (nr_gaps_cbuffer_t(cbuffer) < length)
         cond_wait(&mutex, &cola_prod, num_bloq_prod,
-                __Handler__ {
+                __InterruptHandler__ {
                     vfree(kbuff);
                 });
     
@@ -317,6 +321,5 @@ static ssize_t fifo_write (struct file *filp,
     DBGV("[TERMINADO] lectores esperando %d", num_bloq_cons);
 
     vfree(kbuff);
-
     return length;
 }
