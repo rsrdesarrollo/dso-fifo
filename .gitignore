@@ -4,3 +4,4 @@
 *.mod.c
 *.order
 *.symvers
+*.cmd
