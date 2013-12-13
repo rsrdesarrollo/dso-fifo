@@ -75,7 +75,7 @@ struct semaphore cola_prod, cola_cons, wait_friend;
         }\
     } while(0)
 
-
+#define cond_signal(cond) up(cond)
 
 #define __InterruptHandler__
 
@@ -158,7 +158,7 @@ static int fifo_open(struct inode *inode, struct file *file)
     // Si hay amigos esperando despierta a todos
     while(sleepy_friends){
         sleepy_friends--;
-        up(&wait_friend);
+        cond_signal(&wait_friend);
     }
 
     up(&mutex);
@@ -177,9 +177,14 @@ static int fifo_release(struct inode *inode, struct file *file)
     if (down_interruptible(&mutex)) 
         return -EINTR;
 
-    if (file->f_mode & FMODE_READ) 
+    if (file->f_mode & FMODE_READ){
         num_cons--;
-    else 
+	if(num_cons == 0) // Por si hay productores durmiendo, levántalos. 
+            while(num_bloq_prod){
+	        num_bloq_prod--;
+                cond_signal(&cola_prod);
+	    }
+    }else 
         num_prod--;
 
 
@@ -241,13 +246,20 @@ static ssize_t fifo_read (struct file *filp,
                 __InterruptHandler__ {
                     vfree(kbuff);
                 });
+    
+        if (num_prod == 0 && is_empty_cbuffer_t(cbuffer)){
+            up(&mutex);
+	    DBGV("Pipe vacio sin productores");
+    	    vfree(kbuff);
+	    return 0;
+        }
     }
 
     remove_items_cbuffer_t(cbuffer, kbuff, length); 
     
     // Broadcast a todos los productores, hay nuevos huecos
     while(num_bloq_prod){
-        up(&cola_prod);
+        cond_signal(&cola_prod);
         num_bloq_prod--;
     }
 
@@ -301,17 +313,25 @@ static ssize_t fifo_write (struct file *filp,
     }
 
     // El productor se bloquea si no hay espacio
-    while (nr_gaps_cbuffer_t(cbuffer) < length)
+    while (num_cons > 0 && nr_gaps_cbuffer_t(cbuffer) < length)
         cond_wait(&mutex, &cola_prod, num_bloq_prod,
                 __InterruptHandler__ {
                     vfree(kbuff);
                 });
+
+    // Comprobamos que al salir de un posible wait sigue habiendo consumidores.
+    if (num_cons == 0){
+        up(&mutex);
+	DBG("[ERROR] Escritura sin consumidor.");
+	vfree(kbuff);
+	return -EPIPE;
+    }
     
     insert_items_cbuffer_t(cbuffer, kbuff, length); 
     
     // Broadcast a todos los consumidores, ya hay algo.
     while(num_bloq_cons){
-        up(&cola_cons);
+        cond_signal(&cola_cons);
         num_bloq_cons--;
     }
 
