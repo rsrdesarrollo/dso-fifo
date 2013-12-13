@@ -32,13 +32,12 @@ cbuffer_t* cbuffer;
 int num_prod = 0;
 int num_cons = 0;
 
-int sleepy_friends = 0;
 int num_bloq_prod = 0;
 int num_bloq_cons = 0;
 
 
 DEFINE_SEMAPHORE(mutex);
-struct semaphore cola_prod, cola_cons, wait_friend;
+struct semaphore cola_prod, cola_cons;
 
 #ifdef FIFO_DEBUG
     #define DBG(format, arg...) do { \
@@ -136,29 +135,39 @@ static int fifo_open(struct inode *inode, struct file *file)
     if (down_interruptible(&mutex)) 
         return -EINTR;
 
-    if (is_cons) 
+    if (is_cons){ 
+        // Eres consumidor
         num_cons++;
-    else 
-        num_prod++;
-
-
-    // Si falta de algun tipo esperar a un amigo
-    if(!(num_cons && num_prod)){
-        cond_wait(&mutex, &wait_friend, sleepy_friends,
+        while(num_bloq_prod){
+            num_bloq_prod--;
+            up(&cola_prod);
+        }
+        
+        while(!num_prod)
+            cond_wait(&mutex, &cola_cons, num_bloq_cons,
                 __InterruptHandler__ { 
                     down(&mutex);
-                    if(is_cons)
-                        num_cons--;
-                    else
-                        num_prod--;
+                    num_cons--;
                     up(&mutex);
-                });
-    }
+                }
+            );
 
-    // Si hay amigos esperando despierta a todos
-    while(sleepy_friends){
-        sleepy_friends--;
-        cond_signal(&wait_friend);
+    }else{ 
+        // Eres un productor.
+        num_prod++;
+        while(num_bloq_cons){
+            num_bloq_cons--;
+            up(&cola_cons);
+	}
+        
+        while(!num_cons)
+            cond_wait(&mutex, &cola_prod, num_bloq_prod,
+                __InterruptHandler__ { 
+                    down(&mutex);
+                    num_prod--;
+                    up(&mutex);
+                }
+            );
     }
 
     up(&mutex);
