@@ -118,15 +118,9 @@ asmlinkage long sys_kifs(const char __user *entry_name, unsigned int op_mode, ch
 
     list_for_each_entry(elem, &entry_list, links){
         if(strncmp(elem->entryname, kbuff, MAX_KIFS_ENTRY_NAME_SIZE) == 0){
-            
-            //TODO: Es necesario añadir la operacion a la SC??
-            //       El puntero a elem se va a mantener pase lo que pase, 
-            //       pero, podria ser que un módulo justamente borrara la 
-            //       entrada kifs y además se descargue el módulo y de esta
-            //       manera al llamar al call-back la función este descargada
-            //       (Que pase todo esto en tan poco tiempo es muy improbable)
-            
+         
             spin_unlock(&mutex);
+
             switch(op_mode){
                 case KIFS_READ_OP:
                     if(elem->read_kifs == NULL)
